@@ -1,0 +1,23 @@
+{
+  "name": "actor-scrapy",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node main.js",
+    "lint": "./node_modules/.bin/eslint main.js",
+    "lint:fix": "./node_modules/.bin/eslint main.js --ext .js --fix"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "apify": "^0.15.1",
+    "await-exec": "^0.1.2"
+  },
+  "devDependencies": {
+    "eslint": "^5.16.0",
+    "eslint-config-airbnb-base": "^13.2.0",
+    "eslint-plugin-import": "^2.18.0"
+  }
+}
