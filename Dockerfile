@@ -12,11 +12,11 @@ RUN \
   apt-get install -yqq nodejs yarn && \
   pip install -U pip && pip install pipenv && \
   npm i -g npm@^6 && \
-  rm -rf /var/lib/apt/lists/*
+  rm -rf /var/lib/apt/lists/* \
+  pip install scrapy
 
 COPY . ./
 
-RUN pip install scrapy
 RUN npm install
 
 # replace with pip install apify
