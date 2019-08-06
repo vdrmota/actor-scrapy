@@ -1,23 +1,45 @@
 const Apify = require('apify');
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
 const fs = require('fs');
 
 
 Apify.getValue('INPUT').then((input) => {
-  const code = input.scrapyCode;
-
-  fs.writeFileSync('./actor/spiders/run.py', code, (err) => {
+  fs.writeFileSync('./actor/spiders/run.py', input.scrapyCode, (err) => {
     if (err) console.log(err);
     console.log('Successfully built scrapy spider.');
   });
 
-  exec('scrapy list | xargs -n 1 scrapy crawl', (err, stdout, stderr) => {
-    if (err) {
-      console.log(err);
-      return;
-    }
+  const jobDir = Apify.isAtHome() ? Apify.getEnv().actorRunId : 'localRun';
 
-    console.log(`${stderr}`);
-    console.log(`${stdout}`);
+  const scrapyList = spawn('scrapy', ['list']);
+  const scrapyRun = spawn('xargs', ['-n', '1', 'scrapy', 'crawl', '-s', `JOBDIR=crawls/${jobDir}`]);
+
+  scrapyList.stdout.on('data', (data) => {
+    scrapyRun.stdin.write(data);
+  });
+
+  scrapyList.stderr.on('data', (data) => {
+    console.log(`${data}`);
+  });
+
+  scrapyList.on('close', (code) => {
+    if (code !== 0) {
+      console.log(`scrapy list exited with code ${code}`);
+    }
+    scrapyRun.stdin.end();
+  });
+
+  scrapyRun.stdout.on('data', (data) => {
+    console.log(data.toString());
+  });
+
+  scrapyRun.stderr.on('data', (data) => {
+    console.log(`${data}`);
+  });
+
+  scrapyRun.on('close', (code) => {
+    if (code !== 0) {
+      console.log(`scrapy crawl process exited with code ${code}`);
+    }
   });
 });
