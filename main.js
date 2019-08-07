@@ -3,7 +3,7 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const tar = require('tar');
 const tarfs = require('tar-fs');
-const execSync = require('child_process').execSync;
+const { execSync } = require('child_process');
 
 Apify.getValue('INPUT').then((input) => {
   fs.writeFileSync('./actor/spiders/run.py', input.scrapyCode, (err) => {
@@ -14,13 +14,37 @@ Apify.getValue('INPUT').then((input) => {
   Apify.getValue('jobdir.tgz').then((stream) => {
     if (stream != null) {
       fs.writeFileSync('downloaded.tgz', stream);
-      execSync('rm -r ./crawls/');
+      try {
+        execSync('rm -r crawls/');
+      } catch (err) {
+        console.log(err);
+      }
       fs.createReadStream('downloaded.tgz').pipe(tarfs.extract('./'));
+    }
+
+    let useProxy = false;
+    let proxyAddress;
+    if (!input.proxyConfig.useApifyProxy && input.proxyConfig.proxyUrls != null && input.proxyConfig.proxyUrls.length !== 0) {
+      useProxy = true;
+      const proxyUrl = input.proxyConfig.proxyUrls[0];
+      proxyAddress = proxyUrl;
+    } else if (input.proxyConfig.useApifyProxy && input.proxyConfig.apifyProxyGroups.length !== 0) {
+      useProxy = true;
+      const proxyGroups = input.proxyConfig.apifyProxyGroups.join('+');
+      proxyAddress = `http://groups-${proxyGroups}:${process.env.APIFY_PROXY_PASSWORD}@proxy.apify.com:8000`;
+    } else if (input.proxyConfig.useApifyProxy) {
+      useProxy = true;
+      proxyAddress = `http://auto:${process.env.APIFY_PROXY_PASSWORD}@proxy.apify.com:8000`;
+    }
+
+    const env = Object.create(process.env);
+    if (useProxy) {
+      env.http_proxy = proxyAddress;
     }
 
     const jobDir = 'persistentStorage';
     const scrapyList = spawn('scrapy', ['list']);
-    const scrapyRun = spawn('xargs', ['-n', '1', 'scrapy', 'crawl', '-s', `JOBDIR=crawls/${jobDir}`]);
+    const scrapyRun = spawn('xargs', ['-n', '1', 'scrapy', 'crawl', '-s', `JOBDIR=crawls/${jobDir}`], { env });
 
     scrapyList.stdout.on('data', (data) => {
       scrapyRun.stdin.write(data);
