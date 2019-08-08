@@ -12,17 +12,11 @@ Apify.getValue('INPUT').then((input) => {
   });
 
   Apify.getValue('jobdir.tgz').then((stream) => {
-    if (stream != null) {
-      fs.writeFileSync('downloaded.tgz', stream);
-      if (!Apify.isAtHome()) {
-          try {
-            execSync('rm -r crawls/');
-          } catch (err) {
-            console.log(err);
-          }
+      if (stream != null) {
+        fs.writeFileSync('downloaded.tgz', stream);
+        //execSync('rm -r ./crawls/');
+        fs.createReadStream('downloaded.tgz').pipe(tarfs.extract('./'));
       }
-      fs.createReadStream('downloaded.tgz').pipe(tarfs.extract('./'));
-    }
 
     let useProxy = false;
     let proxyAddress = `http://auto:${process.env.APIFY_PROXY_PASSWORD}@proxy.apify.com:8000`;
@@ -45,15 +39,16 @@ Apify.getValue('INPUT').then((input) => {
       env.http_proxy = proxyAddress;
     }
 
+
     const jobDir = 'persistentStorage';
     const scrapyList = spawn('scrapy', ['list']);
     const scrapyRun = spawn('xargs', ['-n', '1', 'scrapy', 'crawl', '-s', `JOBDIR=crawls/${jobDir}`], { env });
 
     const storeJobsInterval = setInterval(() => {
-      tar.c({ gzip: false, file: 'jobdir.tgz' }, ['crawls/']).then(() => {
-        Apify.setValue('jobdir.tgz', fs.readFileSync('jobdir.tgz'), { contentType: 'application/tar+gzip' });
-      });
-    }, 5000);
+        tar.c({ gzip: false, file: 'jobdir.tgz' }, ['crawls/']).then(() => {
+          Apify.setValue('jobdir.tgz', fs.readFileSync('jobdir.tgz'), { contentType: 'application/tar+gzip' });
+        });
+      }, 5000);
 
     scrapyList.stdout.on('data', (data) => {
       scrapyRun.stdin.write(data);
@@ -74,13 +69,10 @@ Apify.getValue('INPUT').then((input) => {
       console.log(`${data}`);
     });
     scrapyRun.on('close', (code) => {
-      clearInterval(storeJobsInterval);
+        clearInterval(storeJobsInterval);
       if (code !== 0) {
         console.log(`scrapy crawl process exited with code ${code}`);
       }
     });
-  })
-    .catch((err) => {
-      console.log(err);
-    });
+  });
 });
