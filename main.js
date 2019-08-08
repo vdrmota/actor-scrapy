@@ -3,7 +3,7 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const tar = require('tar');
 const tarfs = require('tar-fs');
-const { execSync } = require('child_process');
+const execSync = require('child_process').execSync;
 
 Apify.getValue('INPUT').then((input) => {
   fs.writeFileSync('./actor/spiders/run.py', input.scrapyCode, (err) => {
