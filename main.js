@@ -12,15 +12,43 @@ Apify.getValue('INPUT').then((input) => {
   });
 
   Apify.getValue('jobdir.tgz').then((stream) => {
-    if (stream != null) {
-      fs.writeFileSync('downloaded.tgz', stream);
-      execSync('rm -r ./crawls/');
-      fs.createReadStream('downloaded.tgz').pipe(tarfs.extract('./'));
+      if (stream != null) {
+        fs.writeFileSync('downloaded.tgz', stream);
+        //execSync('rm -r ./crawls/');
+        fs.createReadStream('downloaded.tgz').pipe(tarfs.extract('./'));
+      }
+
+    let useProxy = false;
+    let proxyAddress = `http://auto:${process.env.APIFY_PROXY_PASSWORD}@proxy.apify.com:8000`;
+    console.log(input.proxyConfig);
+    if (!input.proxyConfig.useApifyProxy && input.proxyConfig.proxyUrls != null && input.proxyConfig.proxyUrls.length !== 0) {
+      useProxy = true;
+      const proxyUrl = input.proxyConfig.proxyUrls[0];
+      proxyAddress = proxyUrl;
+    } else if (input.proxyConfig.useApifyProxy && input.proxyConfig.apifyProxyGroups != null && input.proxyConfig.apifyProxyGroups.length !== 0) {
+      useProxy = true;
+      const proxyGroups = input.proxyConfig.apifyProxyGroups.join('+');
+      proxyAddress = `http://groups-${proxyGroups}:${process.env.APIFY_PROXY_PASSWORD}@proxy.apify.com:8000`;
+    } else if (input.proxyConfig.useApifyProxy) {
+      useProxy = true;
+      proxyAddress = `http://auto:${process.env.APIFY_PROXY_PASSWORD}@proxy.apify.com:8000`;
     }
+
+    const env = Object.create(process.env);
+    if (useProxy) {
+      env.http_proxy = proxyAddress;
+    }
+
 
     const jobDir = 'persistentStorage';
     const scrapyList = spawn('scrapy', ['list']);
-    const scrapyRun = spawn('xargs', ['-n', '1', 'scrapy', 'crawl', '-s', `JOBDIR=crawls/${jobDir}`]);
+    const scrapyRun = spawn('xargs', ['-n', '1', 'scrapy', 'crawl', '-s', `JOBDIR=crawls/${jobDir}`], { env });
+
+    const storeJobsInterval = setInterval(() => {
+        tar.c({ gzip: false, file: 'jobdir.tgz' }, ['crawls/']).then(() => {
+          Apify.setValue('jobdir.tgz', fs.readFileSync('jobdir.tgz'), { contentType: 'application/tar+gzip' });
+        });
+      }, 5000);
 
     scrapyList.stdout.on('data', (data) => {
       scrapyRun.stdin.write(data);
@@ -41,15 +69,10 @@ Apify.getValue('INPUT').then((input) => {
       console.log(`${data}`);
     });
     scrapyRun.on('close', (code) => {
+        clearInterval(storeJobsInterval);
       if (code !== 0) {
         console.log(`scrapy crawl process exited with code ${code}`);
       }
     });
-
-    setInterval(() => {
-      tar.c({ gzip: false, file: 'jobdir.tgz' }, ['crawls/']).then(() => {
-        Apify.setValue('jobdir.tgz', fs.readFileSync('jobdir.tgz'), { contentType: 'application/tar+gzip' });
-      });
-    }, 5000);
   });
 });
